@@ -6,17 +6,28 @@ export default class IRFilter {
       count: 0,
       impulseResponse: [],
       delayLine: [],
+      gain: 1,
       length: 0
     }
 
     this.bypass = false
   }
 
+  setIR(arr) {
+    this.state.impulseResponse = arr
+    this.state.length = arr.length
+
+    // クリップしないように畳み込みでの増幅を計算する (式の妥当性は不明)
+    let pow = 0
+    for (let val of arr) {
+      pow += val * val
+    }
+    this.state.gain = 1 / pow // 増幅分小さくする
+  }
+
   load(context, url) {
     loadSound(context, url, (error, buf) => {
-      const arr = buf.getChannelData(0)
-      this.state.impulseResponse = arr
-      this.state.length = arr.length
+      this.setIR(buf.getChannelData(0))
     })
   }
 
@@ -34,10 +45,10 @@ export default class IRFilter {
     for (let i = 0; i < st.length; i++) {
     	result += st.impulseResponse[i] * st.delayLine[index]
 
-        index--
-        if (index < 0) {
-        	index = st.length - 1
-        }
+      index--
+      if (index < 0) {
+      	index = st.length - 1
+      }
     }
 
     st.count++
@@ -45,6 +56,6 @@ export default class IRFilter {
     	st.count = 0
     }
 
-    return result
+    return result * this.state.gain
   }
 }

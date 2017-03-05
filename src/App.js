@@ -12,10 +12,13 @@ const irFilter = new IRFilter()
 const irNode = createNode(ctx, irFilter)
 const distFilter = new DistortionFilter()
 const distNode = createNode(ctx, distFilter)
+const gain = ctx.createGain()
+gain.gain.value = 0.5
 
 wav.connect(distNode)
 distNode.connect(irNode)
-irNode.connect(output)
+irNode.connect(gain)
+gain.connect(output)
 
 wav.load("assets/guitar.wav")
 irFilter.load(ctx, "assets/awesome1.wav")
