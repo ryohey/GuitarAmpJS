@@ -1,27 +1,9 @@
-import React, { Component } from 'react';
-import './App.css';
+import React, { Component, Fragment } from 'react'
+import './App.css'
 import createBufferSource from "./createBufferSource"
 import createNode from "./createNode"
 import IRFilter from "./IRFilter"
 import DistortionFilter from "./DistortionFilter"
-
-const ctx = new AudioContext()
-const output = ctx.destination
-const wav = createBufferSource(ctx)
-const irFilter = new IRFilter()
-const irNode = createNode(ctx, irFilter)
-const distFilter = new DistortionFilter()
-const distNode = createNode(ctx, distFilter)
-const gain = ctx.createGain()
-gain.gain.value = 0.5
-
-wav.connect(distNode)
-distNode.connect(irNode)
-irNode.connect(gain)
-gain.connect(output)
-
-wav.load("assets/guitar.wav")
-irFilter.load(ctx, "assets/awesome1.wav")
 
 const MAX_GAIN = 400
 
@@ -88,14 +70,131 @@ class App extends Component {
       bypassCabinet: false,
       distGain: 1
     }
+
+    this.setupMic()
+  }
+
+  componentDidMount() {
+    this.drawVisual()
+  }
+
+  setupMic() {
+    navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: false
+    }).then(stream => {
+      const ctx = new AudioContext()
+      const source = ctx.createMediaStreamSource(stream)
+      this.setupAudio(ctx, source)
+    }).catch(error => {
+      alert(error.message)
+    })
+  }
+
+  setupLoop() {
+    const ctx = new AudioContext()
+    const wav = createBufferSource(ctx)
+    wav.load("assets/guitar.wav")
+    this.setupAudio(ctx, wav)
+  }
+
+  setupAudio(ctx, source) {
+    const inputAnalyser = ctx.createAnalyser()
+    inputAnalyser.fftSize = 2048
+    const inputAnalyserData = new Uint8Array(inputAnalyser.frequencyBinCount)
+    inputAnalyser.getByteTimeDomainData(inputAnalyserData)
+    
+    const outputAnalyser = ctx.createAnalyser()
+    outputAnalyser.fftSize = 2048
+    const outputAnalyserData = new Uint8Array(outputAnalyser.frequencyBinCount)
+    outputAnalyser.getByteTimeDomainData(outputAnalyserData)
+
+    const output = ctx.destination
+    const irFilter = new IRFilter()
+    const irNode = createNode(ctx, irFilter)
+    const distFilter = new DistortionFilter()
+    const distNode = createNode(ctx, distFilter)
+    const gain = ctx.createGain()
+    gain.gain.value = 0.5
+
+    source.connect(distNode)
+    source.connect(inputAnalyser)
+    distNode.connect(irNode)
+    irNode.connect(gain)
+    gain.connect(output)
+    gain.connect(outputAnalyser)
+
+    irFilter.load(ctx, "assets/awesome1.wav")
+
+    this.audioNodes = {
+      inputAnalyser,
+      inputAnalyserData,
+      outputAnalyser,
+      outputAnalyserData,
+      distFilter,
+      irFilter
+    }
+  }
+
+  drawVisual() {
+    requestAnimationFrame(() => this.drawVisual())
+    
+    if (!this.audioNodes) {
+      return
+    }
+    if (this.inputCanvas) {
+      this.drawAnalyser(this.inputCanvas, this.audioNodes.inputAnalyser, this.audioNodes.inputAnalyserData)
+    }
+    if (this.outputCanvas) {
+      this.drawAnalyser(this.outputCanvas, this.audioNodes.outputAnalyser, this.audioNodes.outputAnalyserData)
+    }
+  }
+
+  drawAnalyser(canvas, analyser, analyserData) {
+    const ctx = canvas.getContext("2d")
+    const bufferLength = analyser.frequencyBinCount
+    const WIDTH = canvas.width
+    const HEIGHT = canvas.height
+
+    analyser.getByteTimeDomainData(analyserData)
+
+    ctx.fillStyle = 'rgb(200, 200, 200)'
+    ctx.fillRect(0, 0, WIDTH, HEIGHT)
+
+    ctx.lineWidth = 2
+    ctx.strokeStyle = 'rgb(0, 0, 0)'
+
+    ctx.beginPath()
+
+    const sliceWidth = WIDTH * 1.0 / bufferLength
+    let x = 0
+
+    for (let i = 0; i < bufferLength; i++) {
+      const v = analyserData[i] / 128.0
+      const y = v * HEIGHT/2
+
+      if(i === 0) {
+        ctx.moveTo(x, y)
+      } else {
+        ctx.lineTo(x, y)
+      }
+
+      x += sliceWidth
+    }
+
+    ctx.lineTo(canvas.width, canvas.height/2)
+    ctx.stroke()
   }
 
   render() {
     const { bypassDistortion, bypassCabinet, distGain } = this.state
-    distFilter.bypass = bypassDistortion
-    distFilter.gain = distGain
-    irFilter.bypass = bypassCabinet
-    return (
+    if (this.audioNodes) { 
+      const { distFilter, irFilter } = this.audioNodes
+      distFilter.bypass = bypassDistortion
+      distFilter.gain = distGain
+      irFilter.bypass = bypassCabinet
+    }
+    return <Fragment>
       <div className="effects">
         <StompBox
           name="Distortion"
@@ -117,8 +216,18 @@ class App extends Component {
           })}
           />
       </div>
-    )
+      <div className="analysers">
+        <div className="analyser">
+          <p>input</p>
+          <canvas ref={c => this.inputCanvas = c} width={320} height={200} />
+        </div>
+        <div className="analyser">
+          <p>output</p>
+          <canvas ref={c => this.outputCanvas = c} width={320} height={200} />
+        </div>
+      </div>
+    </Fragment>
   }
 }
 
-export default App;
+export default App
