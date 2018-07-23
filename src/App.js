@@ -71,7 +71,7 @@ class App extends Component {
       distGain: 1
     }
 
-    this.setupMic()
+    this.changeInput("mic")
   }
 
   componentDidMount() {
@@ -127,6 +127,7 @@ class App extends Component {
     irFilter.load(ctx, "assets/awesome1.wav")
 
     this.audioNodes = {
+      ctx,
       inputAnalyser,
       inputAnalyserData,
       outputAnalyser,
@@ -186,6 +187,28 @@ class App extends Component {
     ctx.stroke()
   }
 
+  disposeCurrentAudioNodes() {
+    if (!this.audioNodes) {
+      return
+    }
+    const { ctx } = this.audioNodes
+    ctx.close()
+    this.audioNodes = null
+  }
+
+  changeInput(inputType) {
+    this.disposeCurrentAudioNodes()
+    switch (inputType) {
+      case "demo": 
+        this.setupLoop()
+        break
+      case "mic":
+        this.setupMic()
+        break
+    }
+    this.setState({ inputType })
+  }
+
   render() {
     const { bypassDistortion, bypassCabinet, distGain } = this.state
     if (this.audioNodes) { 
@@ -195,6 +218,11 @@ class App extends Component {
       irFilter.bypass = bypassCabinet
     }
     return <Fragment>
+      <div className="mode">
+        <select value={this.state.inputType} onChange={e => this.changeInput(e.target.value)}>
+          {["demo", "mic"].map(m => <option value={m}>{m}</option>)}
+        </select>
+      </div>
       <div className="effects">
         <StompBox
           name="Distortion"
