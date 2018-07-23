@@ -61,17 +61,20 @@ function StompBox({ name, bypass, onClick, children }) {
   </div>
 }
 
+const initialState = {
+  bypassDistortion: false,
+  bypassCabinet: false,
+  distGain: 1,
+  inputType: "mic"
+}
+
 class App extends Component {
   constructor(props) {
     super(props)
 
-    this.state = {
-      bypassDistortion: false,
-      bypassCabinet: false,
-      distGain: 1
-    }
+    this.state = initialState
 
-    this.changeInput("mic")
+    this.changeInput(initialState.inputType)
   }
 
   componentDidMount() {
@@ -206,7 +209,12 @@ class App extends Component {
         this.setupMic()
         break
     }
-    this.setState({ inputType })
+    this.setState({ 
+      bypassDistortion: initialState.bypassDistortion,
+      bypassCabinet: initialState.bypassCabinet,
+      distGain: initialState.distGain,
+      inputType 
+    })
   }
 
   render() {
